@@ -1,4 +1,25 @@
-DESCRIPTION = "Concurrent brute-forcer: 4-digit PIN or dictionary mode — authorized targets only."
+#!/usr/bin/env python3
+import argparse
+import requests
+import time
+import sys
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from threading import Lock
+
+
+BANNER = r"""
+   _______   __    _____  ___       ___________  _______   ________  ___________  _______   _______   
+  |   __ "\ |" \  (\"   \|"  \     ("     _   ")/"     "| /"       )("     _   ")/"     "| /"      \  
+  (. |__) :)||  | |.\\   \    |     )__/  \\__/(: ______)(:   \___/  )__/  \\__/(: ______)|:        | 
+  |:  ____/ |:  | |: \.   \\  |        \\_ /    \/    |   \___  \       \\_ /    \/    |  |_____/   ) 
+  (|  /     |.  | |.  \    \. |        |.  |    // ___)_   __/  \\      |.  |    // ___)_  //      /  
+ /|__/ \    /\  |\|    \    \ |        \:  |   (:      "| /" \   :)     \:  |   (:      "||:  __   \  
+(_______)  (__\_|_)\___|\____\)         \__|    \_______)(_______/       \__|    \_______)|__|  \___) 
+                                                                                                          
+                                                              
+"""
+
+DDESCRIPTION = "Concurrent brute-forcer: 4-digit PIN or dictionary mode — authorized targets only."
 
 DEFAULT_THREADS = 10
 
@@ -32,7 +53,6 @@ def interactive_inputs(args):
     if not args.endpoint:
         v = input("Endpoint (e.g., /pin or /dictionary): ").strip()
         args.endpoint = v or ("/pin" if args.mode == "pin" else "/dictionary")
-    # fixed parameter name by mode: 'pin' for pin mode, 'password' for dict mode
     args.param = "pin" if args.mode == "pin" else "password"
     if args.mode == "dict" and not args.wordlist:
         wl = input("Wordlist (local path or URL, leave empty for small default): ").strip()
