@@ -19,7 +19,7 @@ BANNER = r"""
                                                               
 """
 
-DDESCRIPTION = "Concurrent brute-forcer: 4-digit PIN or dictionary mode — authorized targets only."
+DESCRIPTION = "Concurrent brute-forcer: 4-digit PIN or dictionary mode — authorized targets only."
 
 DEFAULT_THREADS = 10
 
